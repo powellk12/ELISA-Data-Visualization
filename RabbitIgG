@@ -1,0 +1,139 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load
+file_path = "C:/Users/karap/OneDrive/Desktop/ELISA Data Visualization/ELISA Results 11_18 - Sheet1.csv"
+df = pd.read_csv(file_path, header = None)
+print(df)
+
+# Remove outer rows/columns: rows 0 and last, columns 0 and last
+df_clean = df.drop(index=[0, df.index[-1]]).drop(columns=[df.columns[0], df.columns[-1]])
+print(df_clean)
+
+#Assign row conditions (Antibody dilutions and controls)
+row_conditions = [
+    "Goat anti-rabbit 1/5000",
+    "Goat anti-rabbit 1/10,000",
+    "Goat anti-rabbit 1/20,000",
+    "Goat anti-rabbit 1/40,000",
+    "Negative Control PBS Tween",
+    "Negative Control anti-mouse HRP 1/20,000"
+]
+
+
+# Make sure length matches number of rows
+assert len(row_conditions) == len(df_clean), "Row condition list length mismatch"
+
+df_clean = df_clean.copy()
+df_clean["RowCondition"] = row_conditions
+# ---- Assign column conditions (IgG concentration) ----
+# Use the numeric columns only (exclude RowCondition)
+value_cols = df_clean.columns[:-1]
+
+print(df_clean)
+
+# Assign column conditions (IgG concentrations)
+cols = df_clean.columns
+condition_map = {}
+for i, c in enumerate(cols):
+    # Columns 2–6 => i = 1–5
+    # Columns 7–11 => i = 6–10
+    if 0 <= i <= 4:
+        condition_map[c] = "Rabbit IgG 0.1 ug/mL"
+    elif 5 <= i <= 9:
+        condition_map[c] = "Rabbit IgG 1 ug/mL"
+
+print(df_clean)
+
+# Melt
+df_long = df_clean.melt(
+    id_vars="RowCondition",      # keep row condition
+    value_vars=value_cols,       # melt only OD value columns
+    var_name="Column",
+    value_name="OD"
+)
+# Map column-based (IgG) condition
+df_long["IgGCondition"] = df_long["Column"].map(condition_map)
+
+print(df_long)
+
+# Define the order you want for the x-axis
+desired_order = [
+    "Goat anti-rabbit 1/5000",
+    "Goat anti-rabbit 1/10,000",
+    "Goat anti-rabbit 1/20,000",
+    "Goat anti-rabbit 1/40,000",
+    "Negative Control PBS Tween",
+    "Negative Control anti-mouse HRP 1/20,000"
+]
+
+# Convert RowCondition to a categorical with the specified order
+summary["RowCondition"] = pd.Categorical(
+    summary["RowCondition"],
+    categories=desired_order,
+    ordered=True
+)
+
+# Re-sort the dataframe so pivot will follow the order
+summary = summary.sort_values("RowCondition")
+print(summary)
+
+# Pivot for plotting (optional but nice for grouped bars)
+pivot_mean = summary.pivot(index="RowCondition", columns="IgGCondition", values="mean_OD")
+pivot_sem = summary.pivot(index="RowCondition", columns="IgGCondition", values="sem_OD")
+
+# Identify which rows are goat antibody rows
+is_goat = pivot_mean.index.str.startswith("Goat anti-rabbit")
+
+# Choose color families
+goat_color_01 = "chartreuse"
+goat_color_1 = "darkgreen"
+
+control_color_01 = "darkolivegreen"
+control_color_1 = "darkslategray"
+
+# Build color arrays for each bar
+colors_01 = [goat_color_01 if g else control_color_01 for g in is_goat]
+colors_1  = [goat_color_1  if g else control_color_1  for g in is_goat]
+
+# Plot
+fig, ax = plt.subplots(figsize=(10, 6))
+
+x = np.arange(len(pivot_mean.index))  # one group per row condition
+width = 0.35                           # bar width
+
+# Bars for 0.1 µg/mL
+ax.bar(
+    x - width/2,
+    pivot_mean["Rabbit IgG 0.1 ug/mL"],
+    width,
+    yerr=pivot_sem["Rabbit IgG 0.1 ug/mL"],
+    capsize=5,
+    label="Rabbit IgG 0.1 µg/mL",
+    color=colors_01,
+    alpha=0.85
+)
+
+# Bars for 1 µg/mL
+ax.bar(
+    x + width/2,
+    pivot_mean["Rabbit IgG 1 ug/mL"],
+    width,
+    yerr=pivot_sem["Rabbit IgG 1 ug/mL"],
+    capsize=5,
+    label="Rabbit IgG 1 µg/mL",
+    color=colors_1,
+    alpha=0.85
+)
+
+
+# Formatting
+ax.set_xticks(x)
+ax.set_xticklabels(pivot_mean.index, rotation=20, ha="right")
+ax.set_ylabel("OD")
+ax.set_title("ELISA OD ± SE Rabbit IgG November 18 2025")
+ax.legend()
+
+plt.tight_layout()
+plt.show()

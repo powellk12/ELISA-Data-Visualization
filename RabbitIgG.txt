@@ -1,0 +1,34 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load
+file_path = "C:/Users/karap/OneDrive/Desktop/ELISA Data Visualization/ELISA Results 11_18 - Sheet1.csv"
+df = pd.read_csv(file_path)
+
+# Remove outer rows/columns: rows 0 and last, columns 0 and last
+df_clean = df.drop(index=[0, df.index[-1]]).drop(columns=[df.columns[0], df.columns[-1]])
+
+# Assign conditions based on column positions (after removal)
+cols = df_clean.columns
+condition_map = {}
+for i, c in enumerate(cols):
+    # Columns 2–6 => i = 1–5
+    # Columns 7–11 => i = 6–10
+    if 1 <= i <= 5:
+        condition_map[c] = "Rabbit IgG 0.1 ug/mL"
+    elif 6 <= i <= 10:
+        condition_map[c] = "Rabbit IgG 1 ug/mL"
+    else:
+        condition_map[c] = "Other"
+
+# Melt
+df_long = df_clean.melt(var_name="Column", value_name="OD")
+df_long["Condition"] = df_long["Column"].map(condition_map)
+
+# Plot
+plt.figure(figsize=(6,4))
+df_long.groupby("Condition")["OD"].mean().plot(kind="bar")
+plt.ylabel("Mean OD")
+plt.title("ELISA OD by Condition")
+plt.tight_layout()
+plt.show()
